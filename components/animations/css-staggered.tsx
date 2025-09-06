@@ -46,32 +46,34 @@ export function CssStaggered({
     if (!React.isValidElement(child)) return child;
     
     // Find all elements with opacity: 0 and add animation
-    const processNode = (node: React.ReactElement) => {
+    const processNode = (node: React.ReactElement<any, any>): React.ReactNode => {
       if (!React.isValidElement(node)) return node;
       
       // If it has children, process them recursively
-      if (node.props.children) {
-        const processedChildren = React.Children.map(node.props.children, (child) => {
+      if (node.props && (node.props as any).children) {
+        const processedChildren: React.ReactNode = React.Children.map((node.props as any).children as React.ReactNode, (child) => {
           if (!React.isValidElement(child)) return child;
-          return processNode(child);
-        });
+          return processNode(child as React.ReactElement<any, any>);
+        }) as React.ReactNode;
         
         return React.cloneElement(node, {}, processedChildren);
       }
       
       // Check if this element has opacity: 0
-      if (node.props.className && node.props.className.includes('opacity-0')) {
+      const classNameProp = (node.props && (node.props as any).className) as string | undefined;
+      if (classNameProp && classNameProp.includes('opacity-0')) {
         const childDelay = delay + (index * staggerAmount);
         
         return React.cloneElement(node, {
+          ...(node.props as any),
           style: {
-            ...node.props.style,
+            ...((node.props as any)?.style),
             opacity: isVisible ? 1 : 0,
             transform: isVisible ? 'translateY(0)' : 'translateY(20px)',
             transition: `opacity 0.5s ease, transform 0.5s ease`,
             transitionDelay: `${childDelay}s`
           },
-        });
+        } as any);
       }
       
       return node;
