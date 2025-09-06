@@ -13,10 +13,37 @@ export function Navigation() {
   const [user, setUser] = useState<{ name: string; email: string } | null>(null)
 
   useEffect(() => {
-    const userData = localStorage.getItem("user")
-    if (userData) {
-      setUser(JSON.parse(userData))
+    // This should run only once on component mount
+    const checkUserAuth = () => {
+      const userData = localStorage.getItem("user")
+      if (userData) {
+        try {
+          const parsedUser = JSON.parse(userData)
+          setUser(parsedUser)
+          
+          // If user is on auth pages, redirect to lectures
+          if (["/signin", "/signup"].includes(pathname || "")) {
+            router.push("/lectures")
+          }
+        } catch (e) {
+          // Invalid user data in localStorage, remove it
+          localStorage.removeItem("user")
+          setUser(null)
+          
+          // Only redirect to login if on a protected page
+          if (!["/", "/signin", "/signup"].includes(pathname || "")) {
+            router.push("/signin")
+          }
+        }
+      } else if (!["/", "/signin", "/signup"].includes(pathname || "")) {
+        // If no user and on protected page, redirect to signin
+        router.push("/signin")
+      }
     }
+    
+    checkUserAuth()
+    // We deliberately don't include pathname or router as dependencies
+    // because we only want this to run once on mount
   }, [])
 
   const handleSignOut = () => {
@@ -64,10 +91,16 @@ export function Navigation() {
           <div className="flex items-center space-x-4">
             {user ? (
               <>
-                <div className="hidden md:flex items-center space-x-2 text-sm text-muted-foreground">
-                  <User className="h-4 w-4" />
-                  <span>Welcome, {user.name}</span>
-                </div>
+                <Link href="/profile" className="flex items-center">
+                  {user.photo ? (
+                    <img src={user.photo} alt={user.name} className="h-8 w-8 rounded-full mr-2" />
+                  ) : (
+                    <div className="h-8 w-8 rounded-full bg-primary/20 text-primary flex items-center justify-center mr-2">
+                      {user.name?.charAt(0) || "U"}
+                    </div>
+                  )}
+                  <span className="text-sm hidden md:inline">{user.name}</span>
+                </Link>
                 <Button variant="outline" size="sm" onClick={handleSignOut}>
                   <LogOut className="h-4 w-4 mr-2" />
                   Sign Out

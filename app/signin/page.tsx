@@ -8,121 +8,96 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, EyeOff, LogIn, Mail } from "lucide-react"
-import { FcGoogle } from "react-icons/fc"
+import { Eye, EyeOff, LogIn, Loader2 } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
+import { toast } from "sonner"
+import { GoogleAuthButton } from "@/components/google-auth-button"
+import { GoogleAuthTroubleshooter } from "@/components/google-auth-troubleshoot"
 
 // Firebase imports
-import { auth, googleProvider } from "@/lib/firebase"
-import { signInWithEmailAndPassword, signInWithPopup, getAdditionalUserInfo } from "firebase/auth"
+import { auth, db } from "@/lib/firebase"
+import { signInWithEmailAndPassword } from "firebase/auth"
+import { doc, setDoc } from "firebase/firestore"
 
 export default function SignInPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+  const [emailLoading, setEmailLoading] = useState(false)
   const router = useRouter()
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
-    setIsLoading(true)
+    setEmailLoading(true)
+
+    if (!email || !password) {
+      setError("Email and password are required")
+      setEmailLoading(false)
+      return
+    }
 
     try {
+      // Show loading toast
+      const loadingToast = toast.loading("Signing in...")
+
       const userCredential = await signInWithEmailAndPassword(auth, email, password)
       const user = userCredential.user
 
-      // Check if user exists and has completed profile
-      if (!user) {
-        setError('Account does not exist. Please sign up first.')
-        setIsLoading(false)
-        return
-      }
+      // Create or update user document
+      const userRef = doc(db, "users", user.uid)
+      await setDoc(
+        userRef,
+        {
+          email: user.email,
+          name: user.displayName || email.split("@")[0],
+          uid: user.uid,
+          lastLogin: new Date().toISOString(),
+        },
+        { merge: true }
+      )
 
-      // Store user info
+      // Update localStorage with user data
       localStorage.setItem(
         "user",
         JSON.stringify({
           email: user.email,
-          name: user.displayName,
+          name: user.displayName || email.split("@")[0],
           uid: user.uid,
-          signedInAt: new Date().toISOString(),
-        }),
+          lastLogin: new Date().toISOString(),
+        })
       )
 
-      setIsLoading(false)
-      router.push("/lectures")
+      // Dismiss loading toast and show success
+      toast.dismiss(loadingToast)
+      toast.success("Signed in successfully!")
+
+      // Set a short timeout to ensure the UI updates before redirect
+      setTimeout(() => {
+        router.push("/lectures")
+      }, 300)
     } catch (error: any) {
-      setIsLoading(false)
-      if (error.code === 'auth/user-not-found') {
-        setError('Account does not exist. Please sign up first.')
-      } else if (error.code === 'auth/wrong-password') {
-        setError('Incorrect password. Please try again.')
-      } else if (error.code === 'auth/invalid-credential') {
-        setError('Invalid credentials. Account may not exist.')
-      } else if (error.code === 'auth/invalid-email') {
-        setError('Invalid email format.')
-      } else {
-        setError(error.message || 'Failed to sign in. Please try again.')
-      }
-      console.error("Authentication error:", error.code, error.message);
+      console.error("Sign in error:", error.code, error.message)
+
+      let errorMessage = "Sign in failed. Please try again."
+      if (error.code === "auth/user-not-found") {
+        errorMessage = "Account does not exist. Please sign up first."
+      } else if (error.code === "auth/wrong-password") {
+        errorMessage = "Incorrect password. Please try again."
+      } else if (error.code === "auth/invalid-credential") {
+        errorMessage = "Invalid credentials. Please check your email and password."
+      } else if (error.code === "auth/invalid-email") {
+        errorMessage = "Invalid email format."
+      } else if (error.code === "auth/too-many-requests")
+        errorMessage = "Too many failed login attempts. Please try again later or reset your password."
+      else if (error.code === "auth/network-request-failed") errorMessage = "Network error. Please check your internet connection."
+
+      setError(errorMessage)
+      toast.error(errorMessage)
+    } finally {
+      setEmailLoading(false)
     }
-  }
-
-  const handleGoogleSignIn = async () => {
-    setError("")
-    setIsLoading(true)
-
-    try {
-      const result = await signInWithPopup(auth, googleProvider)
-      const user = result.user
-      
-      // For Google Auth, we should check if this is a first-time user
-      const additionalInfo = getAdditionalUserInfo(result);
-      const isNewUser = additionalInfo?.isNewUser;
-      
-      // Store user info
-      localStorage.setItem(
-        "user",
-        JSON.stringify({
-          email: user.email,
-          name: user.displayName,
-          uid: user.uid,
-          signedInAt: new Date().toISOString(),
-          isNewUser: isNewUser, // Track if this is a first-time user
-        }),
-      )
-
-      setIsLoading(false)
-      
-      // If it's a new user, we might want to redirect them to complete their profile
-      if (isNewUser) {
-        router.push("/complete-profile"); // Create this page if you need additional user info
-      } else {
-        router.push("/lectures");
-      }
-    } catch (error: any) {
-      setIsLoading(false)
-      setError(error.message || 'Google sign-in failed. Please try again.')
-      console.error("Google Authentication error:", error);
-    }
-  }
-
-  // Handle phone authentication success
-  const handlePhoneAuthSuccess = (phoneNumber: string, userId: string) => {
-    // Store user info
-    localStorage.setItem(
-      "user",
-      JSON.stringify({
-        phoneNumber,
-        uid: userId,
-        signedInAt: new Date().toISOString(),
-      }),
-    )
-
-    // Redirect to lectures page
-    router.push("/lectures")
   }
 
   return (
@@ -143,18 +118,14 @@ export default function SignInPage() {
             </Alert>
           )}
 
-          {/* Only Google Sign-In Button */}
+          {/* Google Sign-In Button */}
           <div className="mb-6">
-            <Button 
-              variant="outline" 
-              type="button" 
-              className="w-full flex items-center justify-center gap-3 h-12" 
-              onClick={handleGoogleSignIn}
-              disabled={isLoading}
-            >
-              <FcGoogle className="h-5 w-5" />
-              <span>Continue with Google</span>
-            </Button>
+            <GoogleAuthButton mode="signin" />
+
+            {/* Add the troubleshooter component */}
+            <div className="text-center mt-2">
+              <GoogleAuthTroubleshooter />
+            </div>
           </div>
 
           <div className="relative my-6">
@@ -162,7 +133,7 @@ export default function SignInPage() {
               <Separator className="w-full" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">Or fill out the form</span>
+              <span className="bg-background px-2 text-muted-foreground">Or sign in with email</span>
             </div>
           </div>
 
@@ -212,8 +183,15 @@ export default function SignInPage() {
               </Link>
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Signing In..." : "Sign In"}
+            <Button type="submit" className="w-full" disabled={emailLoading}>
+              {emailLoading ? (
+                <span className="flex items-center">
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Signing In...
+                </span>
+              ) : (
+                "Sign In"
+              )}
             </Button>
           </form>
 
@@ -234,5 +212,5 @@ export default function SignInPage() {
     </div>
   )
 }
-  
+
 

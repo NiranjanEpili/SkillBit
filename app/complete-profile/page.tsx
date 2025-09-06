@@ -11,8 +11,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { UserCheck } from "lucide-react"
 
 // Firebase imports
-import { auth } from "@/lib/firebase"
+import { auth, db } from "@/lib/firebase"
 import { updateProfile } from "firebase/auth"
+import { doc, setDoc } from "firebase/firestore"
 
 export default function CompleteProfilePage() {
   const [userData, setUserData] = useState<any>(null)
@@ -50,23 +51,28 @@ export default function CompleteProfilePage() {
 
     try {
       const user = auth.currentUser
-      
       if (user) {
-        // Update user profile in Firebase if needed
-        // await updateProfile(user, {
-        //   // Add any additional fields you want to update
-        // })
-        
+        // Update user profile in Firebase Auth if needed
+        // await updateProfile(user, { ... })
+
+        // Update Firestore user doc
+        const userRef = doc(db, "users", user.uid)
+        await setDoc(userRef, {
+          ...userData,
+          additionalInfo,
+          profileCompleted: true,
+          isNewUser: false,
+        }, { merge: true })
+
         // Update local storage
         const updatedUser = {
           ...userData,
           additionalInfo,
           profileCompleted: true,
-          isNewUser: false
+          isNewUser: false,
         }
-        
         localStorage.setItem("user", JSON.stringify(updatedUser))
-        
+
         setIsLoading(false)
         router.push("/lectures")
       } else {

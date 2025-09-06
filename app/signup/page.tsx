@@ -13,10 +13,21 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, UserPlus, Check, X, Mail } from "lucide-react"
 import { FcGoogle } from "react-icons/fc"
 import { Separator } from "@/components/ui/separator"
+import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
+import { GoogleAuthButton } from "@/components/google-auth-button"
+import { GoogleAuthTroubleshooter } from "@/components/google-auth-troubleshoot"
 
 // Firebase imports
-import { auth, googleProvider } from "@/lib/firebase"
-import { createUserWithEmailAndPassword, signInWithPopup, updateProfile } from "firebase/auth"
+import { auth, db } from "@/lib/firebase"
+import {
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  updateProfile,
+  GoogleAuthProvider,
+  getAdditionalUserInfo,
+} from "firebase/auth"
+import { doc, setDoc } from "firebase/firestore"
 
 export default function SignUpPage() {
   const [name, setName] = useState("")
@@ -27,6 +38,8 @@ export default function SignUpPage() {
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [passwordFocused, setPasswordFocused] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
+  const [emailLoading, setEmailLoading] = useState(false)
   const router = useRouter()
 
   // Password validation criteria
@@ -55,89 +68,199 @@ export default function SignUpPage() {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
-    setIsLoading(true)
+    setEmailLoading(true)
 
     // Validation
     if (!name || !email || !password || !confirmPassword) {
       setError("Please fill in all fields")
-      setIsLoading(false)
+      setEmailLoading(false)
       return
     }
 
     if (!email.includes("@")) {
       setError("Please enter a valid email address")
-      setIsLoading(false)
+      setEmailLoading(false)
       return
     }
 
     if (!allCriteriaMet) {
       setError("Password does not meet all requirements")
-      setIsLoading(false)
+      setEmailLoading(false)
       return
     }
 
     if (password !== confirmPassword) {
       setError("Passwords do not match")
-      setIsLoading(false)
+      setEmailLoading(false)
       return
     }
 
     try {
+      console.log("Starting account creation...")
+      // Show loading toast
+      const loadingToast = toast.loading("Creating your account...")
+      
       // Create user with email and password
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+      console.log("User created in Firebase Auth")
       
-      // Update profile with name
-      await updateProfile(userCredential.user, {
-        displayName: name
-      });
-
-      // Store additional user info if needed
-      localStorage.setItem(
-        "user",
-        JSON.stringify({
-          email,
-          name,
-          uid: userCredential.user.uid,
-          signedInAt: new Date().toISOString(),
-        }),
-      )
-
-      setIsLoading(false)
-      router.push("/lectures")
-    } catch (error: any) {
-      setIsLoading(false)
-      if (error.code === 'auth/email-already-in-use') {
-        setError('This email is already in use. Please try another one.')
-      } else {
-        setError(error.message || 'Failed to create account. Please try again.')
+      // Update profile
+      try {
+        await updateProfile(userCredential.user, { displayName: name })
+        console.log("User profile updated")
+      } catch (profileError) {
+        console.error("Error updating profile:", profileError)
+        // Continue even if profile update fails
       }
+
+      // Prepare user data
+      const userData = {
+        email,
+        name,
+        uid: userCredential.user.uid,
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString(),
+      }
+
+      // Store user info in Firestore
+      try {
+        console.log("Attempting to save to Firestore...")
+        const userRef = doc(db, "users", userCredential.user.uid)
+        await setDoc(userRef, userData, { merge: true })
+        console.log("User saved to Firestore")
+      } catch (firestoreError) {
+        console.error("Firestore error:", firestoreError)
+        // Continue even if Firestore fails - localStorage will have the user info
+      }
+
+      // Store user info in localStorage
+      console.log("Saving user to localStorage")
+      localStorage.setItem("user", JSON.stringify(userData))
+
+      // Dismiss loading toast and show success
+      toast.dismiss(loadingToast)
+      toast.success("Account created successfully!")
+      
+      console.log("Redirecting to lectures page...")
+      // Set a short timeout to ensure the UI updates before redirect
+      setTimeout(() => {
+        router.push("/lectures")
+      }, 500)
+    } catch (error: any) {
+      console.error("Sign up error:", error)
+      
+      let errorMessage = "Failed to create account. Please try again."
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'This email is already in use. Please try another one or sign in.'
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Invalid email format.'
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Password is too weak. Please create a stronger password.'
+      } else if (error.code === 'auth/network-request-failed') {
+        errorMessage = 'Network error. Please check your internet connection.'
+      }
+      
+      setError(errorMessage)
+      toast.error(errorMessage)
+    } finally {
+      setEmailLoading(false)
     }
   }
 
   const handleGoogleSignIn = async () => {
     setError("")
-    setIsLoading(true)
+    setGoogleLoading(true)
 
     try {
-      const result = await signInWithPopup(auth, googleProvider)
+      console.log("Starting Google sign up process...")
+      const loadingToast = toast.loading("Signing up with Google...")
+      
+      // Create a fresh provider instance
+      const freshGoogleProvider = new GoogleAuthProvider()
+      freshGoogleProvider.setCustomParameters({
+        prompt: 'select_account',
+        access_type: 'offline',
+      })
+      
+      console.log("Initiating Google popup...")
+      // Clear any previous auth state before starting
+      // Add a small delay to ensure the UI is ready
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      const result = await signInWithPopup(auth, freshGoogleProvider)
+      console.log("Google sign up successful:", result.user.uid)
+      
       const user = result.user
+      const additionalInfo = getAdditionalUserInfo(result)
+      const isNewUser = additionalInfo?.isNewUser
+      
+      console.log("Is new user:", isNewUser)
 
-      // Store user info
-      localStorage.setItem(
-        "user",
-        JSON.stringify({
-          email: user.email,
-          name: user.displayName,
-          uid: user.uid,
-          signedInAt: new Date().toISOString(),
-        }),
-      )
+      // Store user info in Firestore
+      const userRef = doc(db, "users", user.uid)
+      console.log("Updating user data in Firestore...")
+      await setDoc(userRef, {
+        email: user.email,
+        name: user.displayName,
+        photoURL: user.photoURL,
+        uid: user.uid,
+        createdAt: isNewUser ? new Date().toISOString() : null,
+        lastLogin: new Date().toISOString(),
+        isNewUser,
+      }, { merge: true })
 
-      setIsLoading(false)
-      router.push("/lectures")
+      // Store user info in localStorage
+      const userData = {
+        email: user.email,
+        name: user.displayName,
+        photoURL: user.photoURL,
+        uid: user.uid,
+        createdAt: isNewUser ? new Date().toISOString() : null,
+        lastLogin: new Date().toISOString(),
+        isNewUser,
+      }
+      
+      console.log("Saving user data to localStorage:", userData)
+      localStorage.setItem("user", JSON.stringify(userData))
+
+      // Dismiss loading toast and show success
+      toast.dismiss(loadingToast)
+      toast.success(isNewUser ? "Account created successfully!" : "Signed in successfully!")
+      
+      console.log("Redirecting user...")
+      // Increase timeout to ensure localStorage is properly set
+      setTimeout(() => {
+        if (isNewUser) {
+          router.push("/complete-profile")
+        } else {
+          router.push("/lectures")
+        }
+      }, 800)
     } catch (error: any) {
-      setIsLoading(false)
-      setError(error.message || 'Google sign-in failed. Please try again.')
+      console.error("Google sign-up error - Code:", error.code)
+      console.error("Google sign-up error - Message:", error.message)
+      
+      let errorMessage = "Google sign-up failed. Please try again."
+      
+      // Detailed error handling with improved messages
+      if (error.code === 'auth/popup-closed-by-user') {
+        errorMessage = 'Sign-up popup was closed. Please try again.'
+      } else if (error.code === 'auth/popup-blocked') {
+        errorMessage = 'Pop-up was blocked by your browser. Please enable pop-ups for this site.'
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        errorMessage = 'Sign-up was cancelled. Please try again.'
+      } else if (error.code === 'auth/network-request-failed') {
+        errorMessage = 'Network error. Please check your internet connection and try again.'
+      } else if (error.code === 'auth/unauthorized-domain') {
+        errorMessage = 'This domain is not authorized for Google sign-up. Please contact support.'
+      } else if (error.code === 'auth/internal-error') {
+        errorMessage = 'An internal error occurred. Please try again later.'
+      }
+      
+      setError(errorMessage)
+      toast.error(errorMessage)
+    } finally {
+      setGoogleLoading(false)
     }
   }
 
@@ -171,18 +294,14 @@ export default function SignUpPage() {
             </Alert>
           )}
 
-          {/* Authentication Button */}
+          {/* Authentication Button - Replace with new component */}
           <div className="mb-6">
-            <Button 
-              variant="outline" 
-              type="button" 
-              className="w-full flex items-center justify-center gap-3 h-12" 
-              onClick={handleGoogleSignIn}
-              disabled={isLoading}
-            >
-              <FcGoogle className="h-5 w-5" />
-              <span>Continue with Google</span>
-            </Button>
+            <GoogleAuthButton mode="signup" />
+            
+            {/* Add the troubleshooter component */}
+            <div className="text-center mt-2">
+              <GoogleAuthTroubleshooter />
+            </div>
           </div>
 
           <div className="relative my-6">
@@ -277,9 +396,16 @@ export default function SignUpPage() {
             <Button 
               type="submit" 
               className="w-full" 
-              disabled={isLoading || !allCriteriaMet || password !== confirmPassword}
+              disabled={emailLoading || googleLoading || !allCriteriaMet || password !== confirmPassword}
             >
-              {isLoading ? "Creating Account..." : "Create Account"}
+              {emailLoading ? (
+                <span className="flex items-center">
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creating Account...
+                </span>
+              ) : (
+                "Create Account"
+              )}
             </Button>
           </form>
 
