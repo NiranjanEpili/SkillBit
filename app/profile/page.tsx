@@ -46,7 +46,7 @@ export default function ProfilePage() {
   
   const fetchUserFromFirestore = async (uid: string) => {
     try {
-      const userRef = doc(db, "users", uid)
+      const userRef = doc(db!, "users", uid)
       const userDoc = await getDoc(userRef)
       
       if (userDoc.exists()) {
@@ -86,7 +86,7 @@ export default function ProfilePage() {
       
       // Update Firestore
       if (updatedUser.uid) {
-        const userRef = doc(db, "users", updatedUser.uid)
+        const userRef = doc(db!, "users", updatedUser.uid)
         await setDoc(userRef, {
           ...updatedUser,
           examTrack,
