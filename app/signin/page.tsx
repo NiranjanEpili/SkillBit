@@ -14,7 +14,7 @@ import { Separator } from "@/components/ui/separator"
 
 // Firebase imports
 import { auth, googleProvider } from "@/lib/firebase"
-import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth"
+import { signInWithEmailAndPassword, signInWithPopup, getAdditionalUserInfo } from "firebase/auth"
 
 export default function SignInPage() {
   const [email, setEmail] = useState("")
@@ -79,7 +79,8 @@ export default function SignInPage() {
       const user = result.user
       
       // For Google Auth, we should check if this is a first-time user
-      const isNewUser = result._tokenResponse?.isNewUser;
+      const additionalInfo = getAdditionalUserInfo(result);
+      const isNewUser = additionalInfo?.isNewUser;
       
       // Store user info
       localStorage.setItem(
@@ -142,8 +143,8 @@ export default function SignInPage() {
             </Alert>
           )}
 
-          {/* Authentication Buttons */}
-          <div className="space-y-3 mb-6">
+          {/* Only Google Sign-In Button */}
+          <div className="mb-6">
             <Button 
               variant="outline" 
               type="button" 
@@ -153,18 +154,6 @@ export default function SignInPage() {
             >
               <FcGoogle className="h-5 w-5" />
               <span>Continue with Google</span>
-            </Button>
-            
-            <Button 
-              variant="outline" 
-              type="button"
-              className="w-full flex items-center justify-center gap-3 h-12"
-              onClick={() => document.getElementById("email-form")?.scrollIntoView({ behavior: "smooth" })}
-            >
-              <div className="bg-blue-500 h-5 w-5 rounded-md flex items-center justify-center">
-                <Mail className="h-3 w-3 text-white" />
-              </div>
-              <span>Continue with Email</span>
             </Button>
           </div>
 
@@ -245,3 +234,5 @@ export default function SignInPage() {
     </div>
   )
 }
+  
+

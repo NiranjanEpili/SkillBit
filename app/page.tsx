@@ -1,3 +1,5 @@
+"use client"
+
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -5,8 +7,31 @@ import { Navigation } from "@/components/navigation"
 import { Brain, Target, TrendingUp, Zap, BookOpen, LineChart, Award, Smartphone } from "lucide-react"
 import { CssSlide } from "@/components/animations/css-slide"
 import { CssStaggered } from "@/components/animations/css-staggered"
+import { useRouter } from "next/navigation"
+import { useState } from "react"
+import Link from "next/link"
 
 export default function HomePage() {
+  const router = useRouter()
+  const [showDemo, setShowDemo] = useState(false)
+  const [demoAnswer, setDemoAnswer] = useState<string | null>(null)
+  const [demoSubmitted, setDemoSubmitted] = useState(false)
+  const testimonials = [
+    {
+      quote: "Students improved 30% faster using SkillBit.",
+      name: "Ayesha, B.Tech Student",
+    },
+    {
+      quote: "Micro-quizzes helped me stay consistent.",
+      name: "Rahul, NEET Aspirant",
+    },
+    {
+      quote: "The dashboard keeps me motivated every day.",
+      name: "Priya, UPSC Prep",
+    },
+  ]
+  const [testimonialIndex, setTestimonialIndex] = useState(0)
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -30,10 +55,14 @@ export default function HomePage() {
                   Personalized micro-learning that adapts to your pace and prevents burnout through intelligent pacing.
                 </p>
                 <div className="flex flex-wrap gap-4 pt-4">
-                  <Button size="lg" className="px-8 py-6 text-lg bg-primary hover:bg-primary/90">
+                  <Button
+                    size="lg"
+                    className="px-8 py-6 text-lg bg-primary hover:bg-primary/90"
+                    onClick={() => router.push("/about")}
+                  >
                     Get Started Free
                   </Button>
-                  <Button size="lg" variant="outline" className="px-8 py-6 text-lg">
+                  <Button size="lg" variant="outline" className="px-8 py-6 text-lg" onClick={() => router.push("/signin")}>
                     Sign In
                   </Button>
                 </div>
@@ -42,17 +71,15 @@ export default function HomePage() {
             
             {/* Right side illustration */}
             <CssSlide direction="left" distance="medium" duration={0.8} delay={0.2}>
-              <div className="relative h-[400px] md:h-[500px]">
-                <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 to-secondary/20 rounded-2xl overflow-hidden flex items-center justify-center">
-                  <div className="relative w-4/5 h-4/5">
-                    <Image
-                      src="/images/hero-illustration.png"
-                      alt="Learning illustration"
-                      fill
-                      style={{ objectFit: "contain" }}
-                      priority
-                    />
-                  </div>
+              <div className="relative h-[400px] md:h-[500px] flex items-center justify-center">
+                {/* Removed the rectangle gradient background */}
+                <div className="relative w-4/5 h-4/5 flex items-center justify-center">
+                  <img
+                    src="https://i.postimg.cc/mrR1sCcL/22fe28d3-6a68-4b12-8d92-5c9dd434767d-removebg-preview.png"
+                    alt="Student learning illustration"
+                    style={{ objectFit: "contain", width: "100%", height: "100%" }}
+                    loading="eager"
+                  />
                 </div>
               </div>
             </CssSlide>
@@ -215,7 +242,57 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Rest of the code... */}
+      {/* Footer */}
+      <footer className="border-t border-border bg-muted/30 py-12 mt-8">
+        <div className="container mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-2">
+            <span className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-white font-bold">SB</span>
+            <span className="font-bold text-lg">SkillBit</span>
+          </div>
+          <nav className="flex gap-6 flex-wrap">
+            <FooterLink href="/about">About</FooterLink>
+            <FooterLink href="/contact">Contact</FooterLink>
+            <FooterLink href="https://github.com/your-repo" target="_blank">GitHub Repo</FooterLink>
+            <FooterLink href="/terms">Terms</FooterLink>
+            <FooterLink href="/privacy">Privacy</FooterLink>
+          </nav>
+          <span className="text-sm text-muted-foreground">© {new Date().getFullYear()} SkillBit. All rights reserved.</span>
+        </div>
+        <style jsx>{`
+          .footer-link {
+            position: relative;
+            color: inherit;
+            text-decoration: none;
+            transition: color 0.2s;
+          }
+          .footer-link:hover {
+            color: #2563eb;
+          }
+          .footer-link::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            bottom: -2px;
+            width: 100%;
+            height: 2px;
+            background: #2563eb;
+            transform: scaleX(0);
+            transition: transform 0.3s;
+          }
+          .footer-link:hover::after {
+            transform: scaleX(1);
+          }
+        `}</style>
+      </footer>
     </div>
+  )
+}
+
+// Animated footer link component
+function FooterLink({ href, children, ...props }: { href: string; children: React.ReactNode; [key: string]: any }) {
+  return (
+    <Link href={href} {...props} className="footer-link text-muted-foreground hover:text-primary transition-colors px-2 py-1">
+      {children}
+    </Link>
   )
 }
