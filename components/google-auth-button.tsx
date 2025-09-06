@@ -7,7 +7,7 @@ import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 
-// Firebase imports (named exports)
+// Firebase imports
 import { GoogleAuthProvider, signInWithPopup, getAdditionalUserInfo } from "firebase/auth"
 import { doc, setDoc } from "firebase/firestore"
 import { auth, db } from "@/lib/firebase"
@@ -33,6 +33,11 @@ export function GoogleAuthButton({
   }, [])
 
   const handleGoogleAuth = async () => {
+    if (!auth) {
+      toast.error("Authentication not initialized. Please refresh the page.")
+      return
+    }
+
     setIsLoading(true)
     const loadingToast = toast.loading(mode === "signin" ? "Signing in with Google..." : "Signing up with Google...")
 
@@ -62,13 +67,17 @@ export function GoogleAuthButton({
         provider: "google",
       }
 
-      try {
-        const userRef = doc(db, "users", user.uid)
-        await setDoc(userRef, userData, { merge: true })
-      } catch (fsErr) {
-        console.error("Failed to save user to Firestore:", fsErr)
+      // attempt to save to Firestore but don't block on failure
+      if (db) {
+        try {
+          const userRef = doc(db, "users", user.uid)
+          await setDoc(userRef, userData, { merge: true })
+        } catch (fsErr) {
+          console.error("Failed to save user to Firestore:", fsErr)
+        }
       }
 
+      // persist locally
       try {
         localStorage.setItem("user", JSON.stringify(userData))
       } catch (lsErr) {
@@ -78,6 +87,7 @@ export function GoogleAuthButton({
       toast.dismiss(loadingToast)
       toast.success(mode === "signin" ? "Signed in successfully!" : "Account created successfully!")
 
+      // small delay to let UI update
       setTimeout(() => {
         if (isNewUser) router.push("/complete-profile")
         else router.push(redirectTo)

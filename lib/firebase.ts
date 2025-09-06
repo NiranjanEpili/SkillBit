@@ -1,7 +1,7 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence, type Auth } from "firebase/auth";
+import { getFirestore, type Firestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -15,11 +15,11 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase - handle both client and server environments
-let app;
-let analytics;
-let auth;
-let db;
-let googleProvider;
+let app: any;
+let analytics: any;
+let auth: Auth | undefined;
+let db: Firestore | undefined;
+let googleProvider: GoogleAuthProvider | undefined;
 
 // Only initialize in browser environment
 if (typeof window !== 'undefined') {
@@ -59,16 +59,20 @@ if (typeof window !== 'undefined') {
     });
 
     // Set persistence correctly with better error handling
-    setPersistence(auth, browserLocalPersistence)
-      .then(() => {
-        console.log("Firebase auth persistence set successfully");
-      })
-      .catch(error => {
-        console.error("Error setting auth persistence:", error);
-      });
+    if (auth) {
+      setPersistence(auth, browserLocalPersistence)
+        .then(() => {
+          console.log("Firebase auth persistence set successfully");
+        })
+        .catch(error => {
+          console.error("Error setting auth persistence:", error);
+        });
+    }
   } catch (error) {
     console.error("Firebase initialization error:", error);
   }
 } 
 
+// Export with proper fallbacks for server-side rendering
 export { auth, googleProvider, db };
+export type { Auth, Firestore };

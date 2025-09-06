@@ -50,11 +50,12 @@ export default function CompleteProfilePage() {
     setIsLoading(true)
 
     try {
-      const user = auth.currentUser
-      if (user) {
-        // Update user profile in Firebase Auth if needed
-        // await updateProfile(user, { ... })
+      if (!auth) {
+        throw new Error("Authentication not initialized")
+      }
 
+      const user = auth.currentUser
+      if (user && db) {
         // Update Firestore user doc
         const userRef = doc(db, "users", user.uid)
         await setDoc(userRef, {
@@ -76,7 +77,7 @@ export default function CompleteProfilePage() {
         setIsLoading(false)
         router.push("/lectures")
       } else {
-        throw new Error("No user is signed in")
+        throw new Error("No user is signed in or database not initialized")
       }
     } catch (error: any) {
       setIsLoading(false)
