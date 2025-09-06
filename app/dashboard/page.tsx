@@ -63,13 +63,19 @@ export default function DashboardPage() {
 		setExamTrack(track)
 		localStorage.setItem("examTrack", track)
 		setShowTrackSwitcher(false)
-		// Update Firestore user doc
+		
+		// Update Firestore user doc with proper null check
 		const userData = localStorage.getItem("user")
-		if (userData) {
-			const user = JSON.parse(userData)
-			if (user.uid) {
-				const userRef = doc(db, "users", user.uid)
-				await setDoc(userRef, { examTrack: track }, { merge: true })
+		if (userData && db) {
+			try {
+				const user = JSON.parse(userData)
+				if (user.uid) {
+					const userRef = doc(db, "users", user.uid)
+					await setDoc(userRef, { examTrack: track }, { merge: true })
+				}
+			} catch (error) {
+				console.error("Error updating exam track in Firestore:", error)
+				// Continue silently if Firestore update fails
 			}
 		}
 	}
