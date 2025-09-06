@@ -39,6 +39,10 @@ export default function SignInPage() {
     }
 
     try {
+      if (!auth || !db) {
+        throw new Error("Firebase not initialized")
+      }
+
       // Show loading toast
       const loadingToast = toast.loading("Signing in...")
 

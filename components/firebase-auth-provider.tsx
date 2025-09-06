@@ -44,53 +44,73 @@ export function FirebaseAuthProvider({ children }: { children: React.ReactNode }
     }
 
     // Set up auth state listener
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      console.log("Auth state changed:", firebaseUser ? "user signed in" : "user signed out")
-      
-      if (firebaseUser) {
-        try {
-          // Get additional user data from Firestore
-          const userRef = doc(db, "users", firebaseUser.uid)
-          const userSnap = await getDoc(userRef)
-          
-          if (userSnap.exists()) {
-            const userData = userSnap.data()
-            setUser(userData)
-            
-            // Update localStorage
-            localStorage.setItem("user", JSON.stringify(userData))
-            
-            setIsAuthenticated(true)
-          } else {
-            // Basic user data if no Firestore document exists
-            const basicUserData = {
+    let unsubscribe = () => {}
+    if (auth) {
+      const un = onAuthStateChanged(auth, async (firebaseUser) => {
+        console.log("Auth state changed:", firebaseUser ? "user signed in" : "user signed out")
+        
+        if (firebaseUser) {
+          try {
+            // Get additional user data from Firestore (if available)
+            if (db) {
+              const userRef = doc(db, "users", firebaseUser.uid)
+              const userSnap = await getDoc(userRef)
+              
+              if (userSnap.exists()) {
+                const userData = userSnap.data()
+                setUser(userData)
+                
+                // Update localStorage
+                localStorage.setItem("user", JSON.stringify(userData))
+                
+                setIsAuthenticated(true)
+              } else {
+                // Basic user data if no Firestore document exists
+                const basicUserData = {
+                  uid: firebaseUser.uid,
+                  email: firebaseUser.email,
+                  name: firebaseUser.displayName,
+                  photoURL: firebaseUser.photoURL,
+                }
+                setUser(basicUserData)
+                localStorage.setItem("user", JSON.stringify(basicUserData))
+                setIsAuthenticated(true)
+              }
+            } else {
+              // db is undefined - fall back to basic user data
+              const basicUserData = {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                name: firebaseUser.displayName,
+                photoURL: firebaseUser.photoURL,
+              }
+              setUser(basicUserData)
+              localStorage.setItem("user", JSON.stringify(basicUserData))
+              setIsAuthenticated(true)
+            }
+          } catch (error) {
+            console.error("Error getting user data:", error)
+            // Basic fallback
+            setUser({
               uid: firebaseUser.uid,
               email: firebaseUser.email,
-              name: firebaseUser.displayName,
-              photoURL: firebaseUser.photoURL,
-            }
-            setUser(basicUserData)
-            localStorage.setItem("user", JSON.stringify(basicUserData))
+            })
             setIsAuthenticated(true)
           }
-        } catch (error) {
-          console.error("Error getting user data:", error)
-          // Basic fallback
-          setUser({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-          })
-          setIsAuthenticated(true)
+        } else {
+          // User is signed out
+          setUser(null)
+          localStorage.removeItem("user")
+          setIsAuthenticated(false)
         }
-      } else {
-        // User is signed out
-        setUser(null)
-        localStorage.removeItem("user")
-        setIsAuthenticated(false)
-      }
-      
+        
+        setLoading(false)
+      })
+      unsubscribe = un
+    } else {
+      console.error("Firebase auth instance is undefined; skipping auth state listener")
       setLoading(false)
-    })
+    }
 
     return () => {
       console.log("Cleaning up auth state change listener")

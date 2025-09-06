@@ -10,7 +10,7 @@ import { LogOut, User } from "lucide-react"
 export function Navigation() {
   const pathname = usePathname()
   const router = useRouter()
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null)
+  const [user, setUser] = useState<{ name: string; email: string; photo?: string } | null>(null)
 
   useEffect(() => {
     // This should run only once on component mount

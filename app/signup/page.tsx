@@ -101,7 +101,7 @@ export default function SignUpPage() {
       const loadingToast = toast.loading("Creating your account...")
       
       // Create user with email and password
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+      const userCredential = await createUserWithEmailAndPassword(auth!, email, password)
       console.log("User created in Firebase Auth")
       
       // Update profile
@@ -125,7 +125,7 @@ export default function SignUpPage() {
       // Store user info in Firestore
       try {
         console.log("Attempting to save to Firestore...")
-        const userRef = doc(db, "users", userCredential.user.uid)
+        const userRef = doc(db!, "users", userCredential.user.uid)
         await setDoc(userRef, userData, { merge: true })
         console.log("User saved to Firestore")
       } catch (firestoreError) {
@@ -187,7 +187,7 @@ export default function SignUpPage() {
       // Add a small delay to ensure the UI is ready
       await new Promise(resolve => setTimeout(resolve, 300))
       
-      const result = await signInWithPopup(auth, freshGoogleProvider)
+      const result = await signInWithPopup(auth!, freshGoogleProvider)
       console.log("Google sign up successful:", result.user.uid)
       
       const user = result.user
@@ -197,7 +197,7 @@ export default function SignUpPage() {
       console.log("Is new user:", isNewUser)
 
       // Store user info in Firestore
-      const userRef = doc(db, "users", user.uid)
+      const userRef = doc(db!, "users", user.uid)
       console.log("Updating user data in Firestore...")
       await setDoc(userRef, {
         email: user.email,

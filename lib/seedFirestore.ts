@@ -63,6 +63,7 @@ const dummyData = [
 ]
 
 export async function seedFirestore() {
+  if (!db) throw new Error("Firestore is not initialized")
   const subjectsRef = collection(db, "subjects")
   const snapshot = await getDocs(subjectsRef)
   if (!snapshot.empty) return // Already seeded
